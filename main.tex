@@ -1,0 +1,90 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{tikz}
+\usepackage{float}
+\usepackage{pgfplots}
+\usetikzlibrary{calc}
+\graphicspath{{./graphics/}}
+\usepackage{hyperref}
+\usepackage{esint}
+\usepackage{enumitem}
+\usepackage{siunitx}
+\usepackage{physics}
+\usepackage{textcomp}
+\usepackage{geometry}[margin=1in]
+\usepackage{tensor}
+
+\renewcommand{\ip}[2]{\langle #1, #2\rangle}
+\pgfplotsset{compat=1.16}
+
+\title{Complex RBMs}
+\author{Andi Gu}
+\date{November 2020}
+
+\begin{document}
+
+\maketitle
+
+\section{Classical RBMs}
+\subsection{Background}
+Classical restricted Boltzmann machines (RBM) are graphical models that encode a probability distribution $P(\vb{v})$ over binary strings $\qty{0,1}^n$. They are a bipartite graph structure, with a number $n_v=n$ of `visible' units and a number $n_h$ of `hidden' units. Each layer has an associated bias vector that acts as a local magnetic field `biasing' each layer towards a particular configuration: for the visible, it is some $a \in \mathbb{R}^{n_h}$ and for the hidden it is $b \in \mathbb{R}^{n_v}$. The two layers of the graph also interact with some interaction term $W \in \mathbb{R}^{n_v \times n_h}$. Formally, there is an energy associated with any given configuration (some setting of the visible $\vb{v}$ and hidden $\vb{h}$ units) of the RBM:
+\begin{equation}
+    E(\vb{v},\vb{h} \mid W, a, b) = -a^T \vb{v} - b^T \vb{h} - \vb{v}^T W \vb{h}
+\end{equation}
+For brevity, we write energy as just $E(\vb{v},\vb{h})$, and the dependence upon $W,a,b$ is implicitly assumed. Then, the probability of any given configuration is simply the Boltzmann term (normalized appropriately) associated with this energy:
+\begin{align}
+    P(\vb{v}, \vb{h}) &= \frac{e^{-E(\vb{v},\vb{h})}}{Z} \\
+    Z &= \sum_{\vb{v},\vb{h}} e^{-E(\vb{v},\vb{h})}
+\end{align}
+The conditional probabilities for each of the individual visible units, in terms of the logistic function $\sigma(x) \equiv \frac{1}{1+e^{-x}}$, is:
+\begin{align}
+    P(\vb{v}_i = 1 \mid \vb{h}) &= \sigma\qty(a_i + (W\vb{h})_i) \label{condv} \\
+    P(\vb{h}_j = 1 \mid \vb{v}) &= \sigma\qty(b_j + (W^T\vb{v})_j) \label{condh}
+\end{align}
+These relations make clear what the effect of the bias vectors are: a positive $a_i$ increases the probability that $\vb{v}_i$ will be 1 (and likewise for the hidden units).
+
+\subsection{Sampling}
+The closed form marginal $P(\vb{v})$ is generally intractable for an RBM. In practice, we find it with Monte Carlo Markov Chain (MCMC) sampling. Since we have the conditional distributions, it is practical to use Gibbs sampling. We start with some random vector $\vb{v}^{(0)} \in \qty{0,1}^{n_v}$, and then take a sample $\vb{h}^{(0)}$ from the hidden units, using $\vb{v}^{(0)}$ as the given according to \eqref{condh}. We then generate another sample $\vb{v}^{(1)}$ using $\vb{h}^{(0)}$ as the given, according to \eqref{condv}. Typically, under 5 iterations of this process is enough to reach stationarity.
+
+\subsection{Training}
+Given some dataset of $N$, $v$-length binary strings $\qty{\vb{x}^{(1)},\vb{x}^{(2)},\ldots,\vb{x}^{(N)}}$, the goal is simply to find $W, a, b$ that maximizes the probability of this dataset. We formulate this in terms of log-likelihood:
+\begin{equation}
+    \max_{W,a,b} \sum_{i=1}^n \log P(\vb{x}^{(i)}; W, a, b)
+\end{equation}
+We define the free energy of some visible vector to be $\mathcal{F}(\vb{v}) \equiv -\log \sum_{\vb{h}} e^{-E(\vb{v},\vb{h})}=-\log(Z \cdot P(\vb{v}))$. Luckily, we can find a closed form for $\mathcal{F}(\vb{v})$:
+\begin{align*}
+    \mathcal{F}(\vb{v}) &= \log e^{a^T \vb{v}} \sum_{\vb{h}} e^{(b+W^T \vb{v})^T \vb{h}}
+    \shortintertext{This sum can be split nicely, since every entry of $\vb{h}$ is binary.}
+    &= -a^T \vb{v} - \log \prod_{j=1}^{n_h} (1+e^{(b+W^T \vb{v})_j}) \\
+    &= -a^T \vb{v} - \sum_{j=1}^{n_h} \log(1+e^{(b+W^T \vb{v})_j})
+\end{align*}
+Then the objective can be reformulated as:
+\begin{equation}
+    \max_{W,a,b} \sum_{i=1}^n -\mathcal{F}(\vb{x}^{(i)}) - \log Z
+\end{equation}
+$\log Z$ is still intractable -- however, its gradient can be approximated:
+\begin{align*}
+    \grad(\log Z) &= \frac{\grad Z}{Z} \\
+    &= \frac{\sum_{\vb{v}}\grad e^{-\mathcal{F}(\vb{v})}}{Z} \\
+    &= -\frac{\sum_{\vb{v}} e^{-\mathcal{F}(\vb{v})} \grad \mathcal{F}(\vb{v})}{Z} \\
+    \shortintertext{Note that $P(\vb{v})=\frac{e^{-\mathcal{F}(\vb{v})}}{Z}$.}
+    &= -\sum_{\vb{v}} P(\vb{v}) \grad \mathcal{F}(\vb{v}) \\
+    &= -\mathbb{E}(\grad{\mathcal{F}(\vb{v})})
+\end{align*}
+That is, the gradient $\grad \log Z$ is simply the expectation of the gradient of free energy -- this we can find, because we can approximate the expectation by Gibbs sampling. 
+
+\section{Complex Generalizations}
+We again parameterize our RBM with weights $a \in \mathbb{C}^{n_v}$, $b \in \mathbb{C}^{n_h}$, and $W \in \mathbb{C}^{n_v \times n_h}$. We allow the hidden units to be binary strings $\vb{h} \in \qty{-1,1}^{n_h}$ and the visible units now represent the projection of the wavefunction onto the $z$-basis: $\vb{v}_j = \sigma^z_j$.
+\begin{align*}
+    \Psi_{RBM}(\vb{v}) &= \sum_{\vb{h} \in \qty{-1,1}^{n_h}} e^{a^H \vb{v} + b^H \vb{h} + \vb{v}^H W \vb{h}} \\
+    &= e^{a^H \vb{v}} \sum_{\vb{h}} e^{(b+W^H \vb{v})^H \vb{h}}
+    \intertext{Again, this factors:}
+    &=e^{a^H \vb{v}} \prod_{i=1}^{n_h} \qty(e^{(b+W^H \vb{v})_i^*} + e^{-(b+W^H \vb{v})_i^*}) \\
+    &= 2e^{a^H \vb{v}} \prod_{i=1}^{n_h} \cosh((b+W^H \vb{v})_i^*)
+\end{align*}
+
+
+\end{document}
