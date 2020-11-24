@@ -77,14 +77,17 @@ $\log Z$ is still intractable -- however, its gradient can be approximated:
 That is, the gradient $\grad \log Z$ is simply the expectation of the gradient of free energy -- this we can find, because we can approximate the expectation by Gibbs sampling. 
 
 \section{Complex Generalizations}
-We again parameterize our RBM with weights $a \in \mathbb{C}^{n_v}$, $b \in \mathbb{C}^{n_h}$, and $W \in \mathbb{C}^{n_v \times n_h}$. We allow the hidden units to be binary strings $\vb{h} \in \qty{-1,1}^{n_h}$ and the visible units now represent the projection of the wavefunction onto the $z$-basis: $\vb{v}_j = \sigma^z_j$.
-\begin{align*}
-    \Psi_{RBM}(\vb{v}) &= \sum_{\vb{h} \in \qty{-1,1}^{n_h}} e^{a^H \vb{v} + b^H \vb{h} + \vb{v}^H W \vb{h}} \\
-    &= e^{a^H \vb{v}} \sum_{\vb{h}} e^{(b+W^H \vb{v})^H \vb{h}}
+We again parameterize our RBM with weights $a \in \mathbb{C}^{N}$, $b \in \mathbb{C}^{n_h}$, and $W \in \mathbb{C}^{N \times n_h}$. We allow the hidden units to be binary strings $\vb{h} \in \qty{0,1}^{n_h}$ and the visible units now represent the projection of the wavefunction onto the $z$-basis: $\vb{v}_j = \sigma^z_j$. Let us label the basis functions in the $z$-basis $\vb{v}_1=\ket{000\ldots0}$, $\vb{v}_2=\ket{000\ldots1}$, $\vb{v}_{2^N}=\ket{111\ldots1}$. The wavefunction encoded explicitly by the RBM is $\Psi_{RBM}: \qty{0,1}^{N} \rightarrow \mathbb{C}$.
+\begin{align}
+    \Psi_{RBM}(\vb{v}) &= \sum_{\vb{h} \in \qty{0,1}^{n_h}} e^{a^H \vb{v} + b^H \vb{h} + \vb{v}^H W \vb{h}} \nonumber \\
+    &= e^{a^H \vb{v}} \sum_{\vb{h}} e^{(b+W^H \vb{v})^H \vb{h}} \nonumber
     \intertext{Again, this factors:}
-    &=e^{a^H \vb{v}} \prod_{i=1}^{n_h} \qty(e^{(b+W^H \vb{v})_i^*} + e^{-(b+W^H \vb{v})_i^*}) \\
-    &= 2e^{a^H \vb{v}} \prod_{i=1}^{n_h} \cosh((b+W^H \vb{v})_i^*)
-\end{align*}
-
+    &=e^{a^H \vb{v}} \prod_{i=1}^{n_h} \qty(e^{(b+W^H \vb{v})_i^*} + 1)
+\end{align}
+We can extend the domain of the wavefunction beyond binary strings to $\tilde{\Psi}: \mathbb{C}^{2^N} \rightarrow \mathbb{C}$:
+\begin{align}
+    \tilde{\Psi}(\vb*{\sigma}) &= \sum_{i=1}^{2^N} \braket{\vb{v}_i}{\vb*{\sigma}} \Psi_{RBM}(\vb{v}_i) \\
+    P(\vb*{\sigma}) &= \frac{\abs{\tilde{\Psi}_{RBM}(\vb*{\sigma})}^2}{\sum_{i=1}^{2^N} \abs{\Psi_{RBM}(\vb{v}_i)}^2}
+\end{align}
 
 \end{document}
